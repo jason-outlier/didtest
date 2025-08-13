@@ -1,3 +1,4 @@
+import 'package:didtest/style/c_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -142,81 +143,50 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
 
   // ===== UI 빌드 메서드들 =====
 
+  // double getR(double radius) => getW(radius);
+  double getW(double width) => MediaQuery.of(context).size.width * (width / 1920);
+  double getH(double height) => MediaQuery.of(context).size.height * (height / 1080);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(color: Colors.white70),
+        decoration: BoxDecoration(color: CColor.bk7.color),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 완료된 주문 목록
-            Expanded(
-              child: _buildOrderList(
-                title: '준비 완료',
-                orders: _model.completedOrders,
-                scrollController: _model.completedScrollController,
-                backgroundColor: Colors.green.shade50,
-                borderColor: Colors.green.shade200,
-                emptyMessage: '',
-                showTimestamp: false,
+            Container(
+              color: CColor.bk5.color,
+              padding: EdgeInsets.symmetric(horizontal: getW(20), vertical: getH(20)),
+              width: getW(550),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLatestCalledNumber(),
+                  SizedBox(height: getH(20)),
+                  Expanded(child: const Placeholder()),
+                ],
               ),
             ),
-            // 대기 중인 주문 목록
             Expanded(
-              child: _buildOrderList(
-                title: '준비 중',
-                orders: _model.waitingOrders,
-                scrollController: _model.waitingScrollController,
-                backgroundColor: Colors.orange.shade50,
-                borderColor: Colors.orange.shade200,
-                emptyMessage: '',
-                showTimestamp: true,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 주문 목록 위젯 빌드
-  Widget _buildOrderList({
-    required String title,
-    required List<String> orders,
-    required ScrollController scrollController,
-    required Color backgroundColor,
-    required Color borderColor,
-    required String emptyMessage,
-    required bool showTimestamp,
-  }) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: borderColor),
-      ),
-      color: backgroundColor,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 제목
-            _buildTitle(title),
-            const SizedBox(height: 16),
-            // 주문 목록
-            Expanded(
-              child: _buildOrderListContent(
-                orders: orders,
-                scrollController: scrollController,
-                backgroundColor: backgroundColor,
-                borderColor: borderColor,
-                emptyMessage: emptyMessage,
-                showTimestamp: showTimestamp,
-                title: title,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: getW(50), vertical: getH(50)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildOrderTitle(title: "주문하신 메뉴가 나왔습니다.", subTitle: "your menu is ready."),
+                    SizedBox(height: getH(30)),
+                    _buildOrdersGrid(orders: _model.completedOrders.reversed.toList(), scrollController: _model.completedScrollController, length: 8),
+                    SizedBox(height: getH(5)),
+                    _buildOrderTitle(title: "메뉴 준비중 ...", subTitle: "Your menu is being created."),
+                    SizedBox(height: getH(30)),
+                    _buildOrdersGrid(orders: _model.waitingOrders.reversed.toList(), scrollController: _model.waitingScrollController, length: 12),
+                  ],
+                ),
               ),
             ),
           ],
@@ -225,114 +195,91 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
     );
   }
 
-  /// 제목 위젯 빌드
-  Widget _buildTitle(String title) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.center,
+  /// 최근 호출 번호
+  Widget _buildLatestCalledNumber() {
+    return Container(
+      decoration: BoxDecoration(
+        color: CColor.brand2.color,
+        borderRadius: BorderRadius.circular(getW(15)),
+        border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
+      ),
+      padding: EdgeInsets.symmetric(horizontal: getW(20), vertical: getH(20)),
+      height: getH(140),
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _blinkAnimation,
+          builder: (context, child) {
+            return Opacity(
+              opacity: _blinkAnimation.value,
+              child: Text(
+                _model.latestCalledNumber ?? '',
+                style: TextStyle(fontSize: getW(80), fontWeight: FontWeight.w500, color: CColor.rev1.color),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// 주문 타이틀 영역
+  Widget _buildOrderTitle({required String title, required String subTitle}) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+          style: TextStyle(fontSize: getW(40), fontWeight: FontWeight.w700, color: CColor.bk1.color),
+        ),
+        Text(
+          subTitle,
+          style: TextStyle(fontSize: getW(28), fontWeight: FontWeight.w400, color: CColor.bk3.color),
         ),
       ],
-    );
-  }
-
-  /// 주문 목록 내용 위젯 빌드
-  Widget _buildOrderListContent({
-    required List<String> orders,
-    required ScrollController scrollController,
-    required Color backgroundColor,
-    required Color borderColor,
-    required String emptyMessage,
-    required bool showTimestamp,
-    required String title,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: orders.isEmpty
-          ? _buildEmptyState(emptyMessage)
-          : _buildOrdersGrid(orders: orders, scrollController: scrollController, backgroundColor: backgroundColor, borderColor: borderColor, title: title),
-    );
-  }
-
-  /// 빈 상태 위젯 빌드
-  Widget _buildEmptyState(String emptyMessage) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const SizedBox(height: 12),
-          Text(
-            emptyMessage,
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
     );
   }
 
   /// 주문 그리드 위젯 빌드
-  Widget _buildOrdersGrid({required List<String> orders, required ScrollController scrollController, required Color backgroundColor, required Color borderColor, required String title}) {
-    return Column(
-      children: [
-        // 최근 호출 번호 (완료 목록에만 표시)
-        if (title == '준비 완료') _buildLatestCalledNumber(),
-        // 주문 그리드
-        Expanded(
-          child: GridView.builder(
-            controller: scrollController,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 100),
-            itemCount: orders.length,
-            itemBuilder: (context, index) => _buildOrderItem(orderNo: orders[index], backgroundColor: backgroundColor, borderColor: borderColor),
-          ),
-        ),
-      ],
+  Widget _buildOrdersGrid({required List<String> orders, required ScrollController scrollController, int crossAxisCount = 4, int length = 8}) {
+    Color backgroundColor = (length == 8) ? CColor.brand2.color : CColor.bk8.color;
+    Color borderColor = (length == 8) ? CColor.brand2.color : CColor.bk5.color;
+    Color labelColor = (length == 8) ? CColor.rev1.color : CColor.brand1.color;
+    double gridHeight = getH(125.2 * (length / crossAxisCount) + 20 * (length / crossAxisCount));
+
+    return SizedBox(
+      height: gridHeight,
+      child: GridView.builder(
+        controller: scrollController,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: crossAxisCount, mainAxisSpacing: getW(20), crossAxisSpacing: getH(20), mainAxisExtent: getH(125.2)),
+        itemCount: length,
+        itemBuilder: (context, index) {
+          String? orderNo = (index < orders.length) ? orders[index] : null;
+          return _buildOrderItem(orderNo: orderNo, backgroundColor: backgroundColor, borderColor: borderColor, labelColor: labelColor);
+        },
+      ),
     );
   }
 
   /// 개별 주문 아이템 위젯 빌드
-  Widget _buildOrderItem({required String orderNo, required Color backgroundColor, required Color borderColor}) {
+  Widget _buildOrderItem({required String? orderNo, required Color backgroundColor, required Color borderColor, required Color labelColor}) {
+    bool hasOrderNo = orderNo != null && orderNo.isNotEmpty;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: backgroundColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+        color: hasOrderNo ? backgroundColor : CColor.bk7.color,
+        borderRadius: BorderRadius.circular(getW(15)),
+        border: Border.all(color: hasOrderNo ? borderColor : CColor.bk5.color, style: BorderStyle.solid, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            orderNo,
-            style: TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+            orderNo ?? '',
+            style: TextStyle(fontSize: getW(50), fontWeight: FontWeight.w500, color: labelColor),
           ),
         ],
       ),
-    );
-  }
-
-  /// 최근 호출 번호 위젯 빌드
-  Widget _buildLatestCalledNumber() {
-    return AnimatedBuilder(
-      animation: _blinkAnimation,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _blinkAnimation.value,
-          child: Text(
-            _model.latestCalledNumber ?? '',
-            style: const TextStyle(fontSize: 100, fontWeight: FontWeight.bold, color: Colors.black),
-          ),
-        );
-      },
     );
   }
 }
