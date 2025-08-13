@@ -322,39 +322,29 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.max,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildLatestCalledNumber(),
-                Expanded(
-                  child: _buildOrderList(
-                    title: '완료 목록',
-                    orders: _completedOrders,
-                    scrollController: _completedScrollController,
-                    backgroundColor: Colors.green.shade50,
-                    borderColor: Colors.green.shade200,
-                    icon: Icons.check_circle,
-                    iconColor: Colors.green.shade600,
-                    emptyMessage: '완료 목록이 비어있습니다.',
-                    showTimestamp: false,
-                  ),
-                ),
-              ],
+            child: _buildOrderList(
+              title: '준비 완료',
+              orders: _completedOrders,
+              scrollController: _completedScrollController,
+              backgroundColor: Colors.green.shade50,
+              borderColor: Colors.green.shade200,
+              icon: Icons.check_circle,
+              iconColor: Colors.green.shade600,
+              emptyMessage: '',
+              showTimestamp: false,
             ),
           ),
           const SizedBox(height: 24),
           Expanded(
             child: _buildOrderList(
-              title: '대기 목록',
+              title: '준비 중',
               orders: _waitingOrders,
               scrollController: _waitingScrollController,
               backgroundColor: Colors.orange.shade50,
               borderColor: Colors.orange.shade200,
               icon: Icons.pending,
               iconColor: Colors.orange.shade600,
-              emptyMessage: '대기 목록이 비어있습니다.',
+              emptyMessage: '',
               showTimestamp: true,
             ),
           ),
@@ -395,18 +385,6 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
                 ),
                 const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Text(
-                    '${orders.length}',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: iconColor),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -423,7 +401,7 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(icon, size: 48, color: Colors.grey.shade400),
+                            // Icon(icon, size: 48, color: Colors.grey.shade400),
                             const SizedBox(height: 12),
                             Text(
                               emptyMessage,
@@ -432,32 +410,39 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
                           ],
                         ),
                       )
-                    : GridView.builder(
-                        controller: scrollController,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 100),
-                        itemCount: orders.length,
-                        itemBuilder: (context, index) {
-                          final orderNo = orders[index];
+                    : Column(
+                        children: [
+                          if (title == '준비 완료') _buildLatestCalledNumber(),
+                          Expanded(
+                            child: GridView.builder(
+                              controller: scrollController,
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 100),
+                              itemCount: orders.length,
+                              itemBuilder: (context, index) {
+                                final orderNo = orders[index];
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                              color: backgroundColor.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: borderColor.withOpacity(0.5)),
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: backgroundColor.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: borderColor.withOpacity(0.5)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        orderNo,
+                                        style: TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  orderNo,
-                                  style: TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
               ),
             ),
@@ -468,36 +453,17 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
   }
 
   Widget _buildLatestCalledNumber() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
-      ),
-      child: Container(
-        height: 200,
-        padding: const EdgeInsets.all(5),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            if (_latestCalledNumber != null)
-              AnimatedBuilder(
-                animation: _blinkAnimation,
-                builder: (context, child) {
-                  return Opacity(
-                    opacity: _blinkAnimation.value,
-                    child: Text(
-                      _latestCalledNumber!,
-                      style: const TextStyle(fontSize: 100, fontWeight: FontWeight.bold, color: Colors.black),
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _blinkAnimation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _blinkAnimation.value,
+          child: Text(
+            _latestCalledNumber!,
+            style: const TextStyle(fontSize: 100, fontWeight: FontWeight.bold, color: Colors.black),
+          ),
+        );
+      },
     );
   }
 }
