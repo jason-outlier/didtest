@@ -1,6 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'did_display_screen_model.dart';
 
+/// DID 디스플레이 화면 - 주문 상태를 실시간으로 표시하는 메인 화면
 class DIDDisplayScreen extends StatefulWidget {
   const DIDDisplayScreen({super.key});
 
@@ -8,285 +11,121 @@ class DIDDisplayScreen extends StatefulWidget {
   State<DIDDisplayScreen> createState() => _DIDDisplayScreenState();
 }
 
-class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProviderStateMixin {
-  final TextEditingController _portController = TextEditingController(text: '4040');
-  final ScrollController _waitingScrollController = ScrollController();
-  final ScrollController _completedScrollController = ScrollController();
+class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
+  // ===== 모델 및 컨트롤러 =====
+  late final DIDDisplayScreenModel _model;
+  late final AnimationController _blinkController;
+  late final Animation<double> _blinkAnimation;
 
-  ServerSocket? _server;
-
-  // Order management
-  final List<String> _waitingOrders = [];
-  final List<String> _completedOrders = [];
-  final Map<String, DateTime> _orderTimestamps = {};
-  String? _latestCalledNumber;
-
-  // Animation for blinking latest called number
-  late AnimationController _blinkController;
-  late Animation<double> _blinkAnimation;
+  // ===== 생명주기 메서드 =====
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize blink animation
-    _blinkController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this);
-    _blinkAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _blinkController, curve: Curves.easeInOut));
-
-    _getDeviceIP();
-    // Auto-start server on port 4040
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _portController.text = '4040';
-      _startServer();
-    });
+    _initializeApp();
   }
 
   @override
   void dispose() {
-    _portController.dispose();
-    _waitingScrollController.dispose();
-    _completedScrollController.dispose();
-    _blinkController.dispose();
-    _stopServer();
+    _disposeResources();
     super.dispose();
   }
 
-  Future<void> _getDeviceIP() async {
-    try {
-      final interfaces = await NetworkInterface.list();
-
-      // Look for WiFi interface first
-      for (final interface in interfaces) {
-        if (interface.name.toLowerCase().contains('wlan') || interface.name.toLowerCase().contains('wifi') || interface.name.toLowerCase().contains('wi-fi')) {
-          for (final addr in interface.addresses) {
-            if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-              return;
-            }
-          }
-        }
-      }
-
-      // Fallback to any non-loopback IPv4 address
-      for (final interface in interfaces) {
-        for (final addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-            return;
-          }
-        }
-      }
-    } catch (e) {}
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureLandscapeOrientation();
   }
 
-  Future<void> _startServer() async {
-    try {
-      final port = int.parse(_portController.text.trim());
-      _server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
-      _server!.listen((Socket client) {
-        _handleClient(client);
-      });
-    } catch (e) {
-      _showSnackBar('Failed to start server: $e', isError: true);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _onAppResumed();
     }
   }
 
-  void _handleClient(Socket client) {
-    final clientIp = client.remoteAddress.address;
-    print('🔌 New client connected from: $clientIp');
+  // ===== 초기화 메서드들 =====
 
-    client.listen(
-      (data) {
-        final message = String.fromCharCodes(data).trim();
-        print('📨 Received socket data from $clientIp: "$message"');
-
-        if (message.isNotEmpty) {
-          print('🔄 Processing order message: $message');
-          _processOrderMessage(message);
-          client.write('Order processed: $message\n');
-          print('✅ Response sent to client: Order processed: $message');
-        } else {
-          print('⚠️ Empty message received, ignoring');
-        }
-      },
-      onDone: () {
-        print('👋 Client disconnected: $clientIp');
-        client.close();
-      },
-      onError: (error) {
-        print('❌ Client error [$clientIp]: $error');
-        client.close();
-      },
-    );
+  /// 앱 초기화 - 웨이크락, 애니메이션, 모델 초기화
+  void _initializeApp() {
+    _enableWakelock();
+    _addLifecycleObserver();
+    _initializeModel();
+    _initializeBlinkAnimation();
+    _setupOrientationAndFullscreen();
   }
 
-  void _processOrderMessage(String message) {
-    print('🔍 Parsing order message: "$message"');
-
-    // Parse order message format: "*1W0000*" (wait), "*1A0000*" (complete), "*1D0000*" (delete), or "*1C0000*" (clear all)
-    // Remove asterisk delimiters if present
-    String cleanMessage = message;
-    if (message.startsWith('*') && message.endsWith('*')) {
-      cleanMessage = message.substring(1, message.length - 1);
-      print('🔧 Removed asterisk delimiters, clean message: "$cleanMessage"');
-    }
-
-    if (cleanMessage.length == 6 && cleanMessage.startsWith('1')) {
-      final action = cleanMessage[1];
-      final orderNo = cleanMessage.substring(2);
-
-      print('📋 Action: $action, Order Number: $orderNo');
-
-      if (action == 'W') {
-        print('⏳ WAIT command detected for order: $orderNo');
-        if (orderNo.isNotEmpty) {
-          _addToWaitList(orderNo);
-        } else {
-          print('⚠️ Empty order number in WAIT command');
-        }
-      } else if (action == 'A') {
-        print('✅ COMPLETE command detected for order: $orderNo');
-        if (orderNo.isNotEmpty) {
-          _addToCompleteList(orderNo);
-        } else {
-          print('⚠️ Empty order number in COMPLETE command');
-        }
-      } else if (action == 'D') {
-        print('🗑️ DELETE command detected for order: $orderNo');
-        if (orderNo.isNotEmpty) {
-          _deleteOrder(orderNo);
-        } else {
-          print('⚠️ Empty order number in DELETE command');
-        }
-      } else if (action == 'C') {
-        print('🧹 CLEAR ALL command detected');
-        _clearAllOrders();
-      } else {
-        print('❌ Unknown action: $action');
-        print('💡 Expected actions: W (wait), A (complete), D (delete), C (clear all)');
-      }
-    } else {
-      print('❌ Invalid message format: "$message"');
-      print('💡 Expected format: *1W0000* (wait), *1A0000* (complete), *1D0000* (delete), or *1C0000* (clear all)');
-      print('💡 Where * = delimiter, W=wait, A=complete, D=delete, C=clear all, last 4 digits=order number');
-    }
+  /// 웨이크락 활성화 - 화면이 꺼지지 않도록 함
+  void _enableWakelock() {
+    WakelockPlus.enable();
   }
 
-  void _addToWaitList(String orderNo) {
-    print('🔄 Processing wait command for order: $orderNo');
-
-    // Remove from completed list if it exists there
-    if (_completedOrders.contains(orderNo)) {
-      print('📤 Removing order $orderNo from completed list');
-      setState(() {
-        _completedOrders.remove(orderNo);
-      });
-      print('✅ Order $orderNo removed from completed list');
-
-      // Check if this was the latest called number and remove it if so
-      if (_latestCalledNumber == orderNo) {
-        print('🔄 Removing $orderNo from latest called number (no longer in completed list)');
-        setState(() {
-          _latestCalledNumber = null;
-        });
-        print('✅ Latest called number cleared');
-      }
-    }
-
-    // Add to waiting list if not already there
-    if (!_waitingOrders.contains(orderNo)) {
-      print('📝 Adding order $orderNo to waiting list');
-      setState(() {
-        _waitingOrders.add(orderNo);
-        _orderTimestamps[orderNo] = DateTime.now();
-      });
-      print('✅ Order $orderNo added to waiting list. Total waiting: ${_waitingOrders.length}');
-    } else {
-      print('⚠️ Order $orderNo already exists in waiting list');
-    }
+  /// 생명주기 옵저버 추가
+  void _addLifecycleObserver() {
+    WidgetsBinding.instance.addObserver(this);
   }
 
-  void _addToCompleteList(String orderNo) {
-    if (_waitingOrders.contains(orderNo)) {
-      print('📤 Removing order $orderNo from waiting list');
-      setState(() {
-        _waitingOrders.remove(orderNo);
-        _orderTimestamps.remove(orderNo);
-      });
-      print('✅ Order $orderNo removed from waiting list');
-    }
-    if (!_completedOrders.contains(orderNo)) {
-      setState(() {
-        _completedOrders.add(orderNo);
-        _latestCalledNumber = orderNo; // Set as latest called number
-      });
-      _startBlinkingAnimation();
-    } else {
-      print('⚠️ Order $orderNo already exists in completed list');
-    }
-
-    // Validate latest called number after any completed list changes
-    _validateLatestCalledNumber();
+  /// 모델 초기화
+  void _initializeModel() {
+    _model = DIDDisplayScreenModel();
+    _model.addListener(_onModelChanged);
   }
 
-  void _deleteOrder(String orderNo) {
-    print('🗑️ Processing delete command for order: $orderNo');
-
-    // Remove from waiting list if it exists there
-    if (_waitingOrders.contains(orderNo)) {
-      print('📤 Removing order $orderNo from waiting list');
-      setState(() {
-        _waitingOrders.remove(orderNo);
-        _orderTimestamps.remove(orderNo);
-      });
-      print('✅ Order $orderNo removed from waiting list');
-    }
-
-    // Remove from completed list if it exists there
-    if (_completedOrders.contains(orderNo)) {
-      print('📤 Removing order $orderNo from completed list');
-      setState(() {
-        _completedOrders.remove(orderNo);
-      });
-      print('✅ Order $orderNo removed from completed list');
-
-      // Check if this was the latest called number and remove it if so
-      if (_latestCalledNumber == orderNo) {
-        print('🔄 Removing $orderNo from latest called number (no longer in completed list)');
-        setState(() {
-          _latestCalledNumber = null;
-        });
-        print('✅ Latest called number cleared');
-      }
-    }
-
-    print('✅ Delete operation completed for order $orderNo');
+  /// 깜빡임 애니메이션 초기화
+  void _initializeBlinkAnimation() {
+    _blinkController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this);
+    _blinkAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _blinkController, curve: Curves.easeInOut));
   }
 
-  Future<void> _stopServer() async {
-    if (_server != null) {
-      await _server!.close();
-      _server = null;
-    } else {}
-  }
-
-  void _clearAllOrders() {
-    setState(() {
-      _waitingOrders.clear();
-      _completedOrders.clear();
-      _orderTimestamps.clear();
-      _latestCalledNumber = null; // Reset latest called number
+  /// 화면 방향 및 전체화면 설정
+  void _setupOrientationAndFullscreen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     });
   }
 
-  void _validateLatestCalledNumber() {
-    // Check if the latest called number is still in the completed list
-    if (_latestCalledNumber != null && !_completedOrders.contains(_latestCalledNumber)) {
-      setState(() {
-        _latestCalledNumber = null;
-      });
+  /// 리소스 정리
+  void _disposeResources() {
+    _blinkController.dispose();
+    _model.removeListener(_onModelChanged);
+    _model.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  /// 앱이 재개될 때 호출되는 메서드
+  void _onAppResumed() {
+    _enableWakelock();
+    _ensureLandscapeOrientation();
+    _ensureFullscreenMode();
+  }
+
+  /// 가로 방향 유지
+  void _ensureLandscapeOrientation() {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+  }
+
+  /// 전체화면 모드 유지
+  void _ensureFullscreenMode() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  /// 모델 상태 변경 시 호출되는 콜백
+  void _onModelChanged() {
+    if (mounted) {
+      setState(() {});
+      // 깜빡임 애니메이션 시작 여부 확인
+      if (_model.shouldStartBlinking) {
+        startBlinkingAnimation();
+      }
     }
   }
 
-  void _startBlinkingAnimation() {
+  // ===== 애니메이션 메서드들 =====
+
+  /// 깜빡임 애니메이션 시작 (모델에서 호출됨)
+  void startBlinkingAnimation() {
     _blinkController.reset();
     for (int i = 0; i < 5; i++) {
       Future.delayed(Duration(milliseconds: i * 1000), () {
@@ -301,66 +140,55 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
     }
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red.shade400 : Colors.green.shade400,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  // ===== UI 빌드 메서드들 =====
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.max,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _buildOrderList(
-              title: '준비 완료',
-              orders: _completedOrders,
-              scrollController: _completedScrollController,
-              backgroundColor: Colors.green.shade50,
-              borderColor: Colors.green.shade200,
-              icon: Icons.check_circle,
-              iconColor: Colors.green.shade600,
-              emptyMessage: '',
-              showTimestamp: false,
+      body: Container(
+        decoration: const BoxDecoration(color: Colors.white),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 완료된 주문 목록
+            Expanded(
+              child: _buildOrderList(
+                title: '준비 완료',
+                orders: _model.completedOrders,
+                scrollController: _model.completedScrollController,
+                backgroundColor: Colors.green.shade50,
+                borderColor: Colors.green.shade200,
+                emptyMessage: '',
+                showTimestamp: false,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: _buildOrderList(
-              title: '준비 중',
-              orders: _waitingOrders,
-              scrollController: _waitingScrollController,
-              backgroundColor: Colors.orange.shade50,
-              borderColor: Colors.orange.shade200,
-              icon: Icons.pending,
-              iconColor: Colors.orange.shade600,
-              emptyMessage: '',
-              showTimestamp: true,
+            // 대기 중인 주문 목록
+            Expanded(
+              child: _buildOrderList(
+                title: '준비 중',
+                orders: _model.waitingOrders,
+                scrollController: _model.waitingScrollController,
+                backgroundColor: Colors.orange.shade50,
+                borderColor: Colors.orange.shade200,
+                emptyMessage: '',
+                showTimestamp: true,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
+  /// 주문 목록 위젯 빌드
   Widget _buildOrderList({
     required String title,
     required List<String> orders,
     required ScrollController scrollController,
     required Color backgroundColor,
     required Color borderColor,
-    required IconData icon,
-    required Color iconColor,
     required String emptyMessage,
     required bool showTimestamp,
   }) {
@@ -376,74 +204,19 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: iconColor, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
-                ),
-                const Spacer(),
-              ],
-            ),
+            // 제목
+            _buildTitle(title),
             const SizedBox(height: 16),
+            // 주문 목록
             Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: orders.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Icon(icon, size: 48, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            Text(
-                              emptyMessage,
-                              style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        children: [
-                          if (title == '준비 완료') _buildLatestCalledNumber(),
-                          Expanded(
-                            child: GridView.builder(
-                              controller: scrollController,
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 100),
-                              itemCount: orders.length,
-                              itemBuilder: (context, index) {
-                                final orderNo = orders[index];
-
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  decoration: BoxDecoration(
-                                    color: backgroundColor.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: borderColor.withOpacity(0.5)),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        orderNo,
-                                        style: TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
+              child: _buildOrderListContent(
+                orders: orders,
+                scrollController: scrollController,
+                backgroundColor: backgroundColor,
+                borderColor: borderColor,
+                emptyMessage: emptyMessage,
+                showTimestamp: showTimestamp,
+                title: title,
               ),
             ),
           ],
@@ -452,6 +225,102 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
     );
   }
 
+  /// 제목 위젯 빌드
+  Widget _buildTitle(String title) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          title,
+          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+        ),
+      ],
+    );
+  }
+
+  /// 주문 목록 내용 위젯 빌드
+  Widget _buildOrderListContent({
+    required List<String> orders,
+    required ScrollController scrollController,
+    required Color backgroundColor,
+    required Color borderColor,
+    required String emptyMessage,
+    required bool showTimestamp,
+    required String title,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: orders.isEmpty
+          ? _buildEmptyState(emptyMessage)
+          : _buildOrdersGrid(orders: orders, scrollController: scrollController, backgroundColor: backgroundColor, borderColor: borderColor, title: title),
+    );
+  }
+
+  /// 빈 상태 위젯 빌드
+  Widget _buildEmptyState(String emptyMessage) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            emptyMessage,
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 주문 그리드 위젯 빌드
+  Widget _buildOrdersGrid({required List<String> orders, required ScrollController scrollController, required Color backgroundColor, required Color borderColor, required String title}) {
+    return Column(
+      children: [
+        // 최근 호출 번호 (완료 목록에만 표시)
+        if (title == '준비 완료') _buildLatestCalledNumber(),
+        // 주문 그리드
+        Expanded(
+          child: GridView.builder(
+            controller: scrollController,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 100),
+            itemCount: orders.length,
+            itemBuilder: (context, index) => _buildOrderItem(orderNo: orders[index], backgroundColor: backgroundColor, borderColor: borderColor),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 개별 주문 아이템 위젯 빌드
+  Widget _buildOrderItem({required String orderNo, required Color backgroundColor, required Color borderColor}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            orderNo,
+            style: TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 최근 호출 번호 위젯 빌드
   Widget _buildLatestCalledNumber() {
     return AnimatedBuilder(
       animation: _blinkAnimation,
@@ -459,7 +328,7 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
         return Opacity(
           opacity: _blinkAnimation.value,
           child: Text(
-            _latestCalledNumber!,
+            _model.latestCalledNumber ?? '',
             style: const TextStyle(fontSize: 100, fontWeight: FontWeight.bold, color: Colors.black),
           ),
         );
