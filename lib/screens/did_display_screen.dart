@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:didtest/style/c_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -157,18 +159,44 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
           mainAxisSize: MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              color: CColor.bk5.color,
-              padding: EdgeInsets.symmetric(horizontal: getW(20), vertical: getH(20)),
-              width: getW(550),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLatestCalledNumber(),
-                  SizedBox(height: getH(20)),
-                  _buildBanner(),
-                ],
+            ClipRect(
+              child: SizedBox(
+                width: getW(550),
+                child: Stack(
+                  alignment: Alignment.center,
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.asset("assets/images/example.jpg", fit: BoxFit.cover),
+                          BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                            child: Container(color: CColor.bk1.color.withOpacity(0.6)),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Positioned.fill(
+                      child: Container(
+                        // color: CColor.bk5.color,
+                        padding: EdgeInsets.symmetric(horizontal: getW(20), vertical: getH(20)),
+                        width: getW(550),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLatestCalledNumber(),
+                            SizedBox(height: getH(20)),
+                            _buildBanner(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             Expanded(
@@ -198,41 +226,45 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
   /// 배너
   Widget _buildBanner() {
     return Expanded(
-      child: Container(
-        decoration: BoxDecoration(
-          color: CColor.brand2.color,
-          borderRadius: BorderRadius.circular(getW(15)),
-          border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
-        ),
-        child: Column(
-          children: [
-            Container(
-              height: getH(160),
-              decoration: BoxDecoration(
-                color: CColor.brand3.color,
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(getW(15)), topRight: Radius.circular(getW(15))),
-                border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(getW(15)),
+        child: Container(
+          decoration: BoxDecoration(
+            color: CColor.brand2.color,
+            borderRadius: BorderRadius.circular(getW(15)),
+            // backgroundBlendMode: BlendMode.colorBurn,
+            // border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
+          ),
+          child: Column(
+            children: [
+              Container(
+                height: getH(160),
+                decoration: BoxDecoration(
+                  color: CColor.brand3.color,
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(getW(15)), topRight: Radius.circular(getW(15))),
+                  // border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.max,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      "무더위 특별 이벤트",
+                      style: TextStyle(fontSize: getW(35), fontWeight: FontWeight.w700, color: CColor.bk8.color),
+                      textAlign: TextAlign.center,
+                    ),
+                    Text(
+                      "세트 상품을 주문하면 빙수가 공짜 !",
+                      style: TextStyle(fontSize: getW(28), fontWeight: FontWeight.w400, color: CColor.bk3.color),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    "무더위 특별 이벤트",
-                    style: TextStyle(fontSize: getW(35), fontWeight: FontWeight.w700, color: CColor.bk8.color),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    "세트 상품을 주문하면 빙수가 공짜 !",
-                    style: TextStyle(fontSize: getW(28), fontWeight: FontWeight.w400, color: CColor.bk3.color),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-            Expanded(child: const Placeholder()),
-          ],
+              Expanded(child: Image.asset("assets/images/example.jpg", fit: BoxFit.cover)),
+            ],
+          ),
         ),
       ),
     );
