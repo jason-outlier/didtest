@@ -167,7 +167,7 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
                 children: [
                   _buildLatestCalledNumber(),
                   SizedBox(height: getH(20)),
-                  Expanded(child: const Placeholder()),
+                  _buildBanner(),
                 ],
               ),
             ),
@@ -189,6 +189,49 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 배너
+  Widget _buildBanner() {
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          color: CColor.brand2.color,
+          borderRadius: BorderRadius.circular(getW(15)),
+          border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
+        ),
+        child: Column(
+          children: [
+            Container(
+              height: getH(160),
+              decoration: BoxDecoration(
+                color: CColor.brand3.color,
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(getW(15)), topRight: Radius.circular(getW(15))),
+                border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    "무더위 특별 이벤트",
+                    style: TextStyle(fontSize: getW(35), fontWeight: FontWeight.w700, color: CColor.bk8.color),
+                    textAlign: TextAlign.center,
+                  ),
+                  Text(
+                    "세트 상품을 주문하면 빙수가 공짜 !",
+                    style: TextStyle(fontSize: getW(28), fontWeight: FontWeight.w400, color: CColor.bk3.color),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: const Placeholder()),
           ],
         ),
       ),
