@@ -144,8 +144,6 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
   }
 
   // ===== UI 빌드 메서드들 =====
-
-  // double getR(double radius) => getW(radius);
   double getW(double width) => MediaQuery.of(context).size.width * (width / 1920);
   double getH(double height) => MediaQuery.of(context).size.height * (height / 1080);
 
@@ -159,62 +157,61 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
           mainAxisSize: MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ClipRect(
-              child: SizedBox(
-                width: getW(550),
-                child: Stack(
-                  alignment: Alignment.center,
-                  fit: StackFit.expand,
-                  children: [
-                    Positioned.fill(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.asset("assets/images/example.jpg", fit: BoxFit.cover),
-                          BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-                            child: Container(color: CColor.bk1.color.withOpacity(0.6)),
-                          ),
-                        ],
-                      ),
-                    ),
+            // 좌측 영역
+            _buildBannerWrapper(
+              children: [
+                _buildLatestCalledNumber(),
+                SizedBox(height: getH(20)),
+                _buildBanner(),
+              ],
+            ),
+            // 우측 영역
+            _buildGridWrapper(
+              children: [
+                _buildOrderTitle(title: "주문하신 메뉴가 나왔습니다.", subTitle: "your menu is ready."),
+                SizedBox(height: getH(30)),
+                _buildOrdersGrid(orders: _model.completedOrders.reversed.toList(), scrollController: _model.completedScrollController, length: 8),
+                SizedBox(height: getH(5)),
+                _buildOrderTitle(title: "메뉴 준비중 ...", subTitle: "Your menu is being created."),
+                SizedBox(height: getH(30)),
+                _buildOrdersGrid(orders: _model.waitingOrders.reversed.toList(), scrollController: _model.waitingScrollController, length: 12),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                    Positioned.fill(
-                      child: Container(
-                        // color: CColor.bk5.color,
-                        padding: EdgeInsets.symmetric(horizontal: getW(20), vertical: getH(20)),
-                        width: getW(550),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildLatestCalledNumber(),
-                            SizedBox(height: getH(20)),
-                            _buildBanner(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+  // 좌측 배너 영역 wrapper
+  Widget _buildBannerWrapper({required List<Widget> children}) {
+    return ClipRect(
+      child: SizedBox(
+        width: getW(550),
+        child: Stack(
+          alignment: Alignment.center,
+          fit: StackFit.expand,
+          children: [
+            // 배너 배경
+            Positioned.fill(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset("assets/images/example.jpg", fit: BoxFit.cover),
+                  BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                    child: Container(color: CColor.bk1.color.withOpacity(0.6)),
+                  ),
+                ],
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: getW(50), vertical: getH(50)),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildOrderTitle(title: "주문하신 메뉴가 나왔습니다.", subTitle: "your menu is ready."),
-                    SizedBox(height: getH(30)),
-                    _buildOrdersGrid(orders: _model.completedOrders.reversed.toList(), scrollController: _model.completedScrollController, length: 8),
-                    SizedBox(height: getH(5)),
-                    _buildOrderTitle(title: "메뉴 준비중 ...", subTitle: "Your menu is being created."),
-                    SizedBox(height: getH(30)),
-                    _buildOrdersGrid(orders: _model.waitingOrders.reversed.toList(), scrollController: _model.waitingScrollController, length: 12),
-                  ],
-                ),
+
+            // 좌측 영역
+            Positioned.fill(
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: getW(20), vertical: getH(20)),
+                width: getW(550),
+                child: Column(mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.start, children: children),
               ),
             ),
           ],
@@ -223,49 +220,12 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
     );
   }
 
-  /// 배너
-  Widget _buildBanner() {
+  // 우측 배너 영역 wrapper
+  Widget _buildGridWrapper({required List<Widget> children}) {
     return Expanded(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(getW(15)),
-        child: Container(
-          decoration: BoxDecoration(
-            color: CColor.brand2.color,
-            borderRadius: BorderRadius.circular(getW(15)),
-            // backgroundBlendMode: BlendMode.colorBurn,
-            // border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
-          ),
-          child: Column(
-            children: [
-              Container(
-                height: getH(160),
-                decoration: BoxDecoration(
-                  color: CColor.brand3.color,
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(getW(15)), topRight: Radius.circular(getW(15))),
-                  // border: Border.all(color: CColor.brand2.color, style: BorderStyle.solid, width: 1),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      "무더위 특별 이벤트",
-                      style: TextStyle(fontSize: getW(35), fontWeight: FontWeight.w700, color: CColor.bk8.color),
-                      textAlign: TextAlign.center,
-                    ),
-                    Text(
-                      "세트 상품을 주문하면 빙수가 공짜 !",
-                      style: TextStyle(fontSize: getW(28), fontWeight: FontWeight.w400, color: CColor.bk3.color),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(child: Image.asset("assets/images/example.jpg", fit: BoxFit.cover)),
-            ],
-          ),
-        ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: getW(50), vertical: getH(50)),
+        child: Column(mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.start, children: children),
       ),
     );
   }
@@ -292,6 +252,47 @@ class _DIDDisplayScreenState extends State<DIDDisplayScreen> with TickerProvider
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  /// 배너
+  Widget _buildBanner() {
+    return Expanded(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(getW(15)),
+        child: Container(
+          decoration: BoxDecoration(color: CColor.brand2.color, borderRadius: BorderRadius.circular(getW(15))),
+          child: Column(
+            children: [
+              Container(
+                height: getH(160),
+                decoration: BoxDecoration(
+                  color: CColor.brand3.color,
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(getW(15)), topRight: Radius.circular(getW(15))),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.max,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      "무더위 특별 이벤트",
+                      style: TextStyle(fontSize: getW(35), fontWeight: FontWeight.w700, color: CColor.bk8.color),
+                      textAlign: TextAlign.center,
+                    ),
+                    Text(
+                      "세트 상품을 주문하면 빙수가 공짜 !",
+                      style: TextStyle(fontSize: getW(28), fontWeight: FontWeight.w400, color: CColor.bk3.color),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: Image.asset("assets/images/example.jpg", fit: BoxFit.cover)),
+            ],
+          ),
         ),
       ),
     );
